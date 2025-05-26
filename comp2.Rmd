@@ -1,0 +1,228 @@
+---
+title: "computer lab 2"
+author: "Nancy Truong"
+date: "2025-05-26"
+output: html_document
+---
+```{r}
+library(extRemes)
+```
+
+# 2 Covariate inclusion in the block-maxima approach
+We will use maximum winter temperature data, for the time period 1927 to 1995 at Port Jervis, New York.
+```{r}
+data("PORTw", package = "extRemes")
+names(PORTw)
+```
+We want to investigate whether the inclusion of covariate information is statistically significant or
+not.
+It is commonly claimed that large-scale variability in the mid-latitude temperature variability in
+the Northern Hemisphere is the so called North Atlantic Oscillation-Arctic Oscillation (NAO-AO).
+
+We first investigate whether NAO-AO should be included as a covariate in a GEV model for the data (compare with the results you obtained for Assignment 1). For this reason we will fit two models to the data, one without the covariate (fit1, as before) and one with the covariate (fit2). A question is in which of the three GEV parameters (location, scale, shape) one attempt to should include the covariate. Below, and this can be claimed to be in general a good idea for a first attempt, we attempt to include the covariate in the location parameter.
+
+
+```{r}
+fit1 <- fevd(TMX1, PORTw, units = "deg C")
+fit2 <- fevd(TMX1, PORTw, location.fun = ~ AOindex, units = "deg C")
+plot(fit2)
+```
+
+## Question 1 
+The covariate is included in a linear transformation in the location parameters. What does it look like? What is the maximum likelihood estimators of the parameters in the linear trans- formation? 
+
+$$
+\mu(AOindex) = \beta_0 + \beta_1 . AOindex
+$$
+```{r}
+fit2
+```
+
+The plot command gives the log likelihood and it’s gradient for each of the parameters, while keeping the other param-
+eters fixed (at their mle values).
+```{r warning=FALSE}
+plot(fit2, "trace")
+```
+#Question 2 
+There are two plots, for mu0 and mu1. What do they correspond to?
+location function is linear
+mu0 = intercept of location function, when AOindex = 0
+mu1 = slope coefficient for AOindex. how much the location prameter changes per unit change in AOindex
+
+Oner can use a likelihood-ratio test to test whether inclusion of the AO index into the location parameter is statistically significant.
+
+```{r}
+lr.test(fit1, fit2)
+```
+# Question 3
+What is the p-value in the likelihood-ratio test? What is your conclusion?
+No not significant
+
+
+In order to obtain return levels, when using a model with covariates, one must of course specify a covariate value as well as the (estimated) values of the GEV parameters. Such return levels may be called "effective return levels". The following code first constructs an object in R which specifies for the extremes package which covariate values we want to study, in the below example -0.5 and 0.5. The estimated " effective return levels" will be for those two choices of AO index.
+
+```{r}
+AO.cov <- make.qcov(fit2, vals = list(mu1 = c(-0.5, 0.5)))
+return.level(fit2, return.period = c(2, 20, 100), qcov = AO.cov)
+```
+#Question 4 
+Explain the above in more detail. What are the return levels values for the covariate choices?
+
+make.qcov() creates a list of covariate values to plug into the model
+
+This calculates the effective return levels for:
+2-year, 20-year, and 100-year return periods,
+At two different values of the AO index: -0.5 and 0.5.
+Because the location of the GEV depends on AOindex, you get different return levels for each covariate value.
+
+At AOindex = -0.5, return levels are lower:
+This suggests that winters are cooler or extreme maximum temperatures are less extreme under lower AO values.
+At AOindex = 0.5, return levels are higher:
+Higher AO index is associated with warmer winters (more extreme warm maximum temperatures).
+
+
+You may be help by looking at the results in the matrix AO.cov, thus type
+```{r}
+AO.cov
+```
+
+
+If you would like to include the AO index into another GEV parameter, e.g. the scale, you can do that. For instance, to test if the AO index should be included as a parameter in the GEV scale parameter, you can do
+
+```{r}
+fit3 <- fevd(TMX1, PORTw, location.fun= ~ AOindex, scale.fun = ~ AOindex,
+units = "deg C")
+fit3
+plot(fit3)
+```
+Note that including a parameter with a linear transformation into the shape parameter will give rise to it being included as well into the location (you do not need to prove this, you may accept it).
+
+Therefore the fitted model fit3 will be a superset of the model fit2, or put differently, fit2 and fit3 are
+nested models. But also fit1 is a smaller model than fit3, and therefore we have the nested sequence
+fit1 ⊆ fit2 ⊆ fit3. When doing a likelihood ratio test test for fit3, we therefore can compare it to fit2 or to fit1
+
+```{r}
+lr.test(fit1, fit3)
+lr.test(fit2, fit3)
+```
+
+#Question 5 
+
+What are the p-values in the above tests? You may be helped by looking at the degrees of freedom in the two tests, and in the output of the analysis for fit2 and fit3. Which p-value corresponds to a test for inclusion of the AO index into the scale parameter? 2vs 3
+
+What is your conclusion about whether AO should be included into the scale parameter?
+
+Finally we mention that it is not necessary to use only a linear transformation of a covariate into a GEV parameter. One may use the "use.phi" option in the "fevd". We leave this for the interested student to explore.
+
+# 3 The threshold excess method
+For this part we will use hurricane damage data on estimated damages is US hurricanes from 1926 to 1995. We first plot the data
+```{r}
+data("damage", package = "extRemes")
+par(mfrow = c(2, 2))
+plot(damage$Year, damage$Dam, xlab = "Year",
+ylab = "Damage (billion USD)", cex = 1.25,
+cex.lab = 1.25, col = "darkblue", bg = "lightblue", pch = 21)
+plot(damage[, "Year"], log(damage[, "Dam"]), xlab = "Year",
+ylab = "log(Damage)", ylim = c(-10, 5), cex.lab = 1.25,
+col = "darkblue", bg = "lightblue", pch = 21)
+qqnorm(log(damage[, "Dam"]), ylim = c(-10, 5), cex.lab = 1.25)
+```
+
+We need to choose an appropriate threshold when using the threshold excess approach. You have
+studied two methods: 
+
+a) either to choose different thresholds and plot a transformation of the scale (which should be constant if the GP distribution is valid) and from that plot choose a threshold or
+
+b) use the mean excess values and look for a linear fit.
+The next command repeatedly fits a GP distribution for different threshold choices.
+
+```{r}
+threshrange.plot(damage$Dam, r = c(1, 15), nint = 20)
+```
+The scale parameter σ(u) will depend on the threshold and is transformed into σ∗ = σ(u) − ξu, which, if the GP is a good fit, should not depended on u.
+
+#Question 6 
+One should choose a threshold u so that the parameter estimates will "not change much", taking into account the confidence interval bounds, as the threshold increases to more than u, while u remains low enough as to use as much data as possible. Give a (subjective, agreed!) choice of u
+
+u= 12? 8-10
+
+
+The alternative is to use mean excess values. Do
+
+```{r}
+mrlplot(damage$Dam, xlim = c(2, 12))
+```
+#Question 7 
+One should select a threshold such that the graph is linear to the right of that threshold, taking into account the confidence interval bounds, as the threshold increases. Give a (subjective, agreed!) choice of u.
+u= 10-12? 8
+
+Now suppose that we have come to the threshold choice u = 6 billion USD.
+Before we proceed, we see that we need to adjust the time scale since we are acting as if we
+have yearly maxima, but in fact the data contain several hurricanes per year. How to deal with
+this? Recall that we are interested on the annual return level. We can use the average number of
+hurricanes per year as an adjustment and treat the time unit accordingly when calling the functions
+in eXtremes. Looking at the data, the number of years covered = 77, the total number of damages
+= 144, gives 144/77 = 2.06 hurricanes per year on average. We fit a GP distribution to the data
+using the threshold excess method, by
+
+```{r}
+fitD <- fevd(Dam, damage, threshold = 6, type = "GP", time.units = "2.06/year")
+fitD
+```
+
+```{r}
+plot(fitD)
+```
+#Question 8 
+What is the result of the analysis? Does the diagnostic q-q plot (the upper left plot, which shows outliers) indicate that the GP is not a good fit? Can you explain why it perhaps does not do that? State a 95% confidence interval for the shape in the GP distribution, using Gaussian approximation, and using the properties of the mle
+
+ok fit from qq plot. But it does not necessarily indicate a ad fit, even if the uppermost points lie slightly off the line. Because 
+The GP distribution is very sensitive to tail values.
+With only 144 data points and a threshold of 6, you're working with relatively few exceedances, making the extreme tail unstable.
+Slight deviations in the upper-right of the Q-Q plot are common and often not evidence against the GP fit — they may just reflect natural variability in rare events.
+
+Q-Q Plot Fit:
+The Q-Q plot does not strongly suggest the GP is a bad fit. Some minor deviations at the high end are expected due to data sparsity in the extreme tail.
+Why GP might still be appropriate:
+The GP distribution is meant to model extreme threshold exceedances.
+Even with a small number of exceedances, if most of the data conform to the model and the diagnostic plots are reasonably linear, the GP model is often still valid.
+
+# Question 9 
+As noted above the diagnostic plots, which will give return levels, will depend on the choice of time.units. The estimated parameter values will however not. You can test this by changing for instance "2.06/year" to "10/year" in the above code. Can you explain why the mle’s of the
+parameters in the GP do not depend on the time scale?
+```{r}
+fitD <- fevd(Dam, damage, threshold = 6, type = "GP", time.units = "10/year")
+fitD
+```
+
+
+Because the maximum likelihood estimates (MLEs) of the GP distribution are based only on the observed exceedances over the threshold — not on how frequently they occur over time.
+The time scale affects return levels, but not the underlying distribution of exceedances
+
+The GP model is fitted to:
+
+The magnitude of exceedances over a chosen threshold (e.g., $6 billion)
+Not their frequency in calendar time
+The GP parameters are:
+
+Scale (σ): How spread out the exceedances are
+Shape (ξ): Controls the heaviness of the tail
+These describe the distribution of exceedance sizes, not how often they happen
+
+The time.units argument is used only when computing return levels, like the 100-year damage level.
+
+Why?
+
+Because a return level corresponds to a rate of exceedance:
+
+If there are 2.06 events per year, then a "1-in-100-year" return level corresponds to a 1 in 206 event.
+If there are 10 events per year, then the same "1-in-100-year" level corresponds to a 1 in 1000 event.
+So time.units helps translate from event probability to calendar time return period.
+But this is done after fitting the model — it's applied to compute return levels, not to estimate the parameters.
+
+3. MLEs depend only on the exceedances
+MLE estimation in the GP model is based on the likelihood function for the excesses, i.e., the observed values above the threshold. This function does not depend on time — it's based purely on the data values.
+
+✅ Final Answer:
+
+The MLEs of the GP parameters (scale and shape) do not depend on the time scale because they are estimated solely from the observed exceedances over the threshold. The time.units argument only affects the return level calculations, which translate the rate of exceedances into return periods in calendar time.
